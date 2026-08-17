@@ -1,0 +1,64 @@
+services:
+  ftpserve:
+    build: .
+    image: ftpserve:latest
+    container_name: ftpserve
+    restart: unless-stopped
+    # 桥接网络：需映射端口，并设置 PASV_ADDRESS 为 OpenWRT 对客户端可达的 IP
+    ports:
+      - "21:21"
+      - "21000-21010:21000-21010"
+    environment:
+      # ---- 默认账户 ----
+      FTP_USER: ftp
+      FTP_PASS: ftp
+      FTP_DIR: /ftp
+      # 默认账户家目录即挂载点 /ftp；不指定 UID 时脚本会自动探测 /ftp 属主
+      # 若你明确知道宿主机 /vol1/1000/ftp 的属主 UID/GID，建议显式指定以匹配权限：
+      # FTP_UID: 1000
+      # FTP_GID: 1000
+
+      # ---- 额外用户（分号分隔，每项 name:pass:dir[:uid:gid]）----
+      # 示例：用户 ftpm5 / 密码 abc123 / 目录 /ftp/ftpm5
+      FTP_USERS: "ftpm5:abc123:/ftp/ftpm5"
+
+      # ---- 被动模式（PASV）----
+      # 设为 OpenWRT 对客户端可达的 IP（局域网/公网），否则客户端列目录会卡住
+      PASV_ADDRESS: 192.168.20.53
+      PASV_MIN_PORT: 21000
+      PASV_MAX_PORT: 21010
+
+      # 配置持久化策略：yes=每次按环境变量重新生成并写入配置目录；
+      # 设为 no 则复用配置目录中已有的 vsftpd.conf（保留手动修改）
+      FTP_CONF_REGEN: "yes"
+    volumes:
+      # 1) 上传/下载目录
+      - /vol1/1000/ftp:/ftp
+      # 2) 配置文件目录（持久化 vsftpd.conf、users.json 等）
+      - /vol1/1000/docker/ftpserve:/etc/ftpserve
+
+    # 若使用 host 网络模式（OpenWRT 上最简单，无需端口映射、PASV 自动走主机 IP）：
+    # network_mode: host
+    # 注意：host 模式下请删除上面的 ports 段，PASV_ADDRESS 一般可留空。
+
+  # ---------------- 网页管理后台 ----------------
+  ftpadmin:
+    build: ./ftpadmin
+    image: ftpadmin:latest
+    container_name: ftpadmin
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Web 后台登录密码（务必修改！）
+      ADMIN_PASS: "admin"
+      # 要重启的 FTP 服务容器名（与上方 ftpserve.container_name 对应）
+      FTPSERVE_CONTAINER: ftpserve
+      # users.json 在配置卷中的路径（与 ftpserve 共享同一宿主机目录）
+      USERS_FILE: /data/users.json
+      TZ: Asia/Shanghai
+    volumes:
+      # 用于重启 ftpserve 容器使配置生效（拥有 Docker 控制权限，请注意安全）
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 与 ftpserve 共享配置卷，读写 users.json
+      - /vol1/1000/docker/ftpserve:/data
