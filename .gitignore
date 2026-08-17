@@ -1,0 +1,21 @@
+# 部署/诊断脚本（含凭据，不入库）
+deploy*.py
+diag*.py
+probe*.py
+verify*.py
+ftp_test.py
+retest*.py
+isolate*.py
+restore*.py
+realname*.py
+final_verify.py
+# 密钥与敏感文件
+*_key*
+deploy_key/
+*.pem
+*.key
+*.env
+.env.*
+# Python 缓存
+__pycache__/
+*.pyc
